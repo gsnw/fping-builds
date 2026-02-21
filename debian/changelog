@@ -1,0 +1,281 @@
+fping (5.5) unstable; urgency=low
+
+  * New features
+    - New option -J / --json for JSON output. See doc/fping-json.md for the JSON
+      schema. This feature is still in alpha and the schema might change in
+      future releases (#386, thanks @bonkf, @JoshIPT, @sebast-gsnw, and
+      @auerswal).
+    - The -g, --generate option now also supports IPv6 addresses (#376, thanks
+      @auerswal)
+    - New option --seqmap-timeout to control the time after which sequence
+      numbers can be used again (#388, thanks @auerswal)
+
+  * Bugfixes and other changes
+    - Fix OpenBSD sprintf() warning (#394, thanks @gsnw-sebast)
+    - Fix fallback to SO\_TIMESTAMP if SO\_TIMESTAMPNS is not available (#375,
+      thanks @auerswal)
+    - When reading target names from file or standard input, lines longer than
+      the static buffer are no longer interpreted as more than one line (#378,
+      thanks @auerswal)
+    - Typo fix in error message when SO\_BINDTODEVICE fails
+    - Options --print-tos and --print-ttl now also work for IPv6, and no longer
+      require privileges (#384, thanks @auerswal)
+    - Report received ICMPv6 error messages (#391, thanks @auerswal)
+    - Suppress duplicate reports in count mode with -q, --quiet or -Q, --squiet
+      (#392, thanks @gsnw-sebast and @auerswal)
+    - Switch to alpine-based multi-stage Docker build to reduce image size and
+      improve build performance; add OpenContainers-compatible labels (#399,
+      thanks @hoodadt)
+    - Print receive ping moved to new functions (#400, thanks @gsnw-sebast)
+    - Avoid unsigned overflow when determining the memory size to save response
+      times on systems where size\_t is the same as unsigned int (#412 by
+      @auerswal)
+    - Document the new minimum value for the -p option (#414, thanks @auerswal)
+    - Fix build without IPv6 support (#416, thanks @auerswal)
+    - Fix debug build use of dbg_printf in fping.c (#415, thanks @auerswal)
+    - Remove MacOS-specific test for -I option (#407)
+    - GitHub Actions fixes (thanks @gsnw-sebast)
+    - Fix measurement of time for timed reports (-Q) to start after DNS name
+      resolution.
+    - Updated autoconf from 2.71 to 2.72
+    - Updated automake from 1.16.5 to 1.18.1
+    - Updated libtool from 2.4.6 to 2.5.4
+    - Implemented verification of autotools tarballs in Github actions.
+    - Implemented stricter flag value checking (e.g. -c 10xyz is not accepted
+      anymore).
+
+ -- David Schweikert <david@schweikert.ch>  Wed, 31 Dec 2025 00:00:00 -0000
+
+fping (5.4) unstable; urgency=low
+
+  * Bugfixes
+    - Memory allocation safety checks for event storage (thanks David.A for bug
+      report)
+    - Fix off-by-one boundary check in seqmap code (thanks David.A for bug
+      report)
+    - The minimum value for the period (-p flag) is now 0.001 milliseconds,
+      since it probably never makes sense to use a smaller value, and to avoid
+      doing a very large memory allocation for event storage.
+
+ -- David Schweikert <david@schweikert.ch>  Sat, 19 Apr 2025 00:00:00 -0000
+
+fping (5.3) unstable; urgency=low
+
+  * New features
+    - New option --icmp-timestamp to send ICMP timestamp requests (ICMP type 13)
+      instead of ICMP Echo requests (#353 #363, thanks @auerswal and @gsnw-
+      sebast)
+    - New option --print-ttl to print returned TTL value (#354, thanks
+      @nalves599)
+    - New option --print-tos to print returned TOS value (#335 #346 #347, thanks
+      @auerswal and @gsnw-sebast)
+    - New option --check-source (#334, thanks @auerswal)
+    - Predefined various timestamp formats (#321, thanks @auerswal and @gsnw-
+      sebast)
+    - Print cumulative stats with -Q SECS,cumulative (#315, thanks @auerswal)
+
+  * Bugfixes and other changes
+    - ci: Upgrade actions/upload-artifact to v4 (#360, thanks @gsnw-sebast)
+    - ci: Azure Pipeline only trigger when changes are made in the development
+      branch (#359, thanks @gsnw-sebast)
+    - ci: Upgrade actions/upload-artifact to v3 (#355, thanks @pevik)
+    - ci: Azure Pipeline YAML add docker build (#354, thanks @gsnw-sebast)
+    - Dockerfile: change distribution from ubuntu to debian (#350, thanks @gsnw-
+      sebast)
+    - Fix warning unused parameter 'reply_timestamp' under macOS (#348, thanks
+      @gsnw-sebast)
+    - Fix increase maximum -s value to 65507 (#344, thanks @pevik)
+    - ci: use File::Temp to create temporary directory (#343, thanks @auerswal)
+    - Fix -k, --fwmark with setuid fping executable (#342, thanks @auerswal)
+    - Another batch of additional tests (take 2) (#341, thanks @auerswal)
+    - Document that -a and -u are overridden by -c and -C (#338, thanks
+      @auerswal)
+    - Fix macOS build warning sets SEQMAP_TIMEOUT_IN_NSSEQMAP_TIMEOUT_IN_NS as
+      INT64_C (#336, thanks @gsnw-sebast)
+    - Fix inconsistent limits for address generation via -g, --generator using
+      either range or CIDR (#331, thanks @auerswal)
+    - Some additional tests (#329, thanks @auerswal)
+    - ci: skip an unreliable test on macOS (#328, thanks @auerswal)
+    - Fix incorrect return-value check for a scanf like function (CWE-253)
+      (#323, thanks @gsnw-sebast)
+    - A few more tests to increase code coverage a little bit (#320, thanks
+      @auerswal)
+    - Github fix: Change to codeql-action-v2 (#319, thanks @gsnw-sebast)
+    - Developer function: Debug with Visual Studio Code (#318, thanks @gsnw-
+      sebast)
+
+ -- David Schweikert <david@schweikert.ch>  Thu, 02 Jan 2025 00:00:00 -0000
+
+fping (5.2) unstable; urgency=low
+
+  * New features
+    - New option -X / --fast-reachable to exit immediately once N hosts have
+      been found (#260, thanks @chriscray and @gsnw)
+    - New option -k / -fwmark to set Linux fwmark mask (#289, thanks @tomangert
+      and @deepkv)
+
+  * Bugfixes and other changes
+    - Always output fatal error messages (#303, thanks @auerswal)
+    - Fallback to SO\_TIMESTAMP if SO\_TIMESTAMPNS is not available (#279,
+      thanks @gsnw)
+    - Fix "not enough sequence numbers available" error on BSD-like systems
+      (#307, thanks @cagney, @gsnw)
+    - Fix running in unprivileged mode (#248, thanks @sfan5)
+    - Fix build issue for NetBSD/alpha (#255, thanks @0-wiz-0)
+    - Fix build issue for OpenBSD/alpha (#275, thanks @gsnw)
+    - Fix build warning for long int usage (#258, thanks @gsnw)
+    - Fix build error with musl libc (#263, thanks @kraj)
+    - Fix to guard against division by zero (#293, thanks @auerswal)
+    - Decouple -a/-u effects from -c (#298, thanks @auerswal)
+    - Added contrib/Dockerfile (#224, thanks @darless)
+    - Remove host from Netdata chart titles (#253, thanks @ilyam8)
+    - Add additional tests (#292, #297, thanks @auerswal)
+    - Update github action os images (#282, thanks @gsnw)
+    - Fix Azure pipeline tests (#308, thanks @gsnw)
+    - Various autoconf fixes (#286, #283, thanks @gsnw)
+    - Extended configure script with --enable-debug and output cpu usage (#311,
+      thanks @gsnw)
+    - Documentation: Update Netdata website link (#257, thanks @ilyam8)
+    - Documentation: fix description of --file option (#268, thanks @MohGeek)
+    - Documentation: improve exit status description (#294, thanks @auerswal)
+    - Documentation: move description of -i MSEC (#298, thanks @auerswal)
+    - Documentation: improve help output for options -c and -C (#302, #auerswal)
+
+ -- David Schweikert <david@schweikert.ch>  Sun, 21 Apr 2024 00:00:00 -0000
+
+fping (5.1) unstable; urgency=low
+
+  * Bugfixes and other changes
+    - Use setcap to specify specific files in fping.spec (#232, thanks @zdyxry)
+    - Netdata: use host instead name as family label (#226, thanks @k0ste)
+    - Netdata: use formatstring macro PRId64 (#229, thanks @gsnw)
+    - Allow -4 option to be given multiple times (#215, thanks @normanr)
+    - Documentation fix (#208, thanks @timgates42)
+    - Retain privileges until after privileged setsockopt (#200, thanks
+      @simetnicbr)
+    - Set bind to source only when option is set (#198, thanks @dinoex)
+    - Update Azure test pipeline (#197, thanks @gsnw)
+    - Fix getnameinfo not called properly for IPv4 (#227, thanks @aafbsd)
+    - Fixed wrong timestamp under Free- and OpenBSD and macOS (#217, thanks
+      @gsnw)
+    - Documentation updates (#240, thanks @auerswal)
+    - Updated autotools (autoconf 2.71, automake 1.16.5, libtool 2.4.6)
+
+ -- David Schweikert <david@schweikert.ch>  Sun, 06 Feb 2022 00:00:00 -0000
+
+fping (5.0) unstable; urgency=low
+
+  * Incompatible Changes
+    - In non-quiet loop and count mode, a line is printed for every lost packet
+      (#175, thanks @kbucheli):
+    - The returned size in bytes now always excludes the IP header, so if before
+      it reported '84 bytes' e.g. when using 'fping -l', now it reports '64
+      bytes'. This is to make the reported size consistent with ping(8) from
+      iputils and also with fping when pinging a IPv6 host (which never included
+      the IPv6 header size).
+
+  * New features
+    - The number of sent pings is only counted when the pings are received or
+      have timed out, ensuring that the loss ratio will be always correct. This
+      makes it possible, for example, to use loop mode (-l) with interval
+      statistics (-Q) and a timeout larger than period, without having the issue
+      that initially some pings would be reported as missing (#193)
+    - Improved precision of measurements from 10us to 1us (#136, thanks @tycho)
+
+  * Bugfixes and other changes
+    - The reported size of received packets is now always correct on Linux even
+      for packets > 4096 bytes (#180)
+    - Travis CI automated testing now also macos testing and additional ubuntu
+      distributions (#196)
+
+ -- David Schweikert <david@schweikert.ch>  Wed, 05 Aug 2020 00:00:00 -0000
+
+fping (4.4) unstable; urgency=low
+
+  * Bugfixes and other changes
+    - Fix wrong ident used for normal (non-unprivileged) pings (#191, thanks
+      @tycho)
+    - Fix build with --disable-ipv6 (#187, thanks Polynomial-C)
+
+ -- David Schweikert <david@schweikert.ch>  Fri, 24 Jul 2020 00:00:00 -0000
+
+fping (4.3) unstable; urgency=low
+
+  * New features
+    - Linux unprivileged ping support (#173, thanks @tycho)
+    - Add SIGQUIT summary support similar to ping (#185, thanks @laddp)
+
+  * Bugfixes and other changes
+    - Corrected long option name of -s to --stats (#148, thanks @wopfel)
+    - Do not fail if using fping6 with -6 flag (#149, thanks @stromnet)
+    - Fail if interface binding (-I) does not work (#162, thanks @kbucheli)
+    - Fix using option -4 when fping is compiled IPv4-only (#154, thanks
+      @pbhenson)
+    - Add Azure pipeline test build (#153 and #170, thanks @gsnw)
+    - GCC 10 compatibility fixes (#167 and #168, thanks @cranderson)
+    - Macos build fix (#174, thanks @tycho)
+    - Fix xmt stats in Netdata output (#172, thanks @vlvkobal)
+    - Only increase num_alive if response is not a duplicate (#151, thanks
+      @brownowski)
+    - Use line buffering for stdout (#179, thanks @bg6cq)
+
+ -- David Schweikert <david@schweikert.ch>  Sat, 11 Jul 2020 00:00:00 -0000
+
+fping (4.2) unstable; urgency=low
+
+  * New features
+    - New option -x / --reachable to check if the number of reachable hosts is
+      >= a certain number. Useful for example to implement connectivity-checks
+      (#138, thanks @deepak0004)
+
+  * Bugfixes and other changes
+    - Allow decimal numbers for '-t', '-i', '-p', and '-Q'
+    - Fix build with --disable-ipv6 (#134, thanks @Polynomial-C)
+    - Fix hang with '-6', with ipv6 kernel module, but not loaded (#140, thanks
+      @abelbeck)
+    - Assume '-6' if the binary is named 'fping6' (this is mostly for special
+      embedded-distro use cases, and not meant to be used generally in place of
+      compiling IPv6-only binary or using '-6', see also the notes in #139,
+      thanks abelbeck)
+    - Get rid of warning "timeout (-t) value larger than period (-p) produces
+      unexpected results" (#142, thanks @MrDragon1122)
+
+ -- David Schweikert <david@schweikert.ch>  Tue, 19 Feb 2019 00:00:00 -0000
+
+fping (4.1) unstable; urgency=low
+
+  * Bugfixes and other changes
+    - Fix problem when socket fd is 0 (#125, thanks Ramón Novoa!)
+    - Fix running on servers with disabled IPv6 (#118, thanks Simon Matter)
+    - Allow running "fping -h" or "--help" even when raw socket can't be opened
+      (#131, thanks @teto)
+    - Fix build issue with FreeBSD and IPv6 (#132, thanks @gsnw)
+
+ -- David Schweikert <david@schweikert.ch>  Mon, 17 Sep 2018 00:00:00 -0000
+
+fping (4.0) unstable; urgency=low
+
+  * New features
+    - Unified 'fping' and 'fping6' into one binary ([#80][i80])
+    - Long option names for all options
+    - IPv6 enabled by default
+    - New option -4 to force IPv4
+    - New option -6 to force IPv6
+    - Keep original name if a hostname is given with -n/--name
+    - Option -d/--rdns now always does a rdns-lookup, even for names, as '-n'
+      was doing until now
+    - Enforce -t timeout on reply packets, by discarding late packets
+      ([#32][i32])
+    - Auto-adjust timeout for -c/-C/-l mode to value of -p
+
+  * Bugfixes and other changes
+    - -i/-p restrictions disabled by default (enable with --enable-safe-limits)
+    - Default interval -i changed from 25ms to 10ms
+    - Fix compatibility issue with GNU Hurd
+    - A C99 compiler is now required
+    - Option parsing with optparse (https://github.com/skeeto/optparse). Thanks
+      Christopher Wellons!
+    - New changelog file format
+
+ -- David Schweikert <david@schweikert.ch>  Sun, 23 Apr 2017 00:00:00 -0000
+

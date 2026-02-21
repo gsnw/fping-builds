@@ -1,0 +1,18 @@
+Source: fping
+Section: net
+Priority: optional
+Maintainer: David Schweikert <david@schweikert.ch>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.7.2
+Homepage: https://www.fping.org
+
+Package: fping
+Architecture: any
+Depends: libcap2-bin [linux-any],
+         netbase,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Enhances: netdata (>= 1.5)
+Description: fping is a program to send ICMP echo
+ probes to network hosts, similar to ping, but
+ much better performing when pinging multiple hosts

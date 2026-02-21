@@ -1,0 +1,36 @@
+name: Build Debian Package
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Checkout fping Repository
+        uses: actions/checkout@v6
+        with:
+          repository: 'gsnw/fping'
+          path: 'fping'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install build-essential debhelper libcap2-bin
+
+      - name: Copy debian directory to fping source
+        run: |
+          cp -r debian fping/
+
+      - name: Build Ubuntu Package
+        run: |
+          cd fping
+          dpkg-buildpackage -us -uc -b
+
+      - name: Upload Ubuntu Package
+        uses: actions/upload-artifact@v6
+        with:
+          name: fping-${{ github.sha }}.deb
+          path: fping/*.deb
+
