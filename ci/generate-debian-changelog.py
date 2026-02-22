@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# python3 md2debian.py Changelog.md > debian/changelog
+# python3 generate-debian-changelog.py Changelog.md > debian/changelog
 
 import re
 import sys
