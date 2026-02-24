@@ -1,0 +1,102 @@
+name: Build Debian + tar.gz Release
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    env:
+      PACKAGE_NAME: fping
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Checkout fping Repository
+        uses: actions/checkout@v6
+        with:
+          repository: 'gsnw/fping'
+          path: 'fping'
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install build-essential debhelper dpkg-dev fakeroot gnupg libcap2-bin
+
+      - name: Copy debian directory to fping source
+        run: |
+          cp -r debian fping/
+
+      - name: Generate debian changelog
+        run: |
+          python3 ci/generate-debian-changelog.py fping/CHANGELOG.md > fping/debian/changelog
+
+      - name: Import GPG key (optional)
+        run: |
+          if [ -n "${GPG_PRIVATE_KEY}" ] && [ -n "${GPG_KEY_ID}" ]; then
+            echo "${{ secrets.GPG_PRIVATE_KEY }}" | gpg --batch --import
+            mkdir -p ~/.gnupg
+            echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+            echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+            gpgconf --kill gpg-agent
+          else
+            echo "No GPG key provided, skipping import"
+          fi
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+
+      - name: Build Debian Package
+        run: |
+          cd $PACKAGE_NAME
+          if [ -n "${GPG_PRIVATE_KEY}" ] && [ -n "${GPG_KEY_ID}" ]; then
+            echo "Signing enabled"
+            dpkg-buildpackage -k$GPG_KEY_ID -b
+          else
+            dpkg-buildpackage -us -uc -b
+          fi
+        env:
+          GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
+          GPG_KEY_ID: ${{ secrets.GPG_KEY_ID }}
+          DEBEMAIL: support@gsnw.de
+          DEBFULLNAME: German-Service-Network
+
+      - name: Prepare artifacts
+        run: |
+          mkdir -p artifacts
+          mv *.deb artifacts/ || true
+          mv *.changes artifacts/ || true
+          mv *.buildinfo artifacts/ || true
+
+          cd artifacts
+          DEB_FILE=$(ls *.deb | head -n 1)
+
+          mkdir extract
+          dpkg-deb -x $DEB_FILE extract
+
+          tar -czf ${PACKAGE_NAME}-${{ github.ref_name }}-linux-amd64.tar.gz -C extract .
+
+      - name: Upload Ubuntu Package
+        uses: actions/upload-artifact@v6
+        with:
+          name: fping-${{ matrix.arch }}-${{ github.sha }}
+          path: artifacts/*
+
+  release:
+    needs: build
+    runs-on: ubuntu-22.04
+    if: startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: fping-${{ matrix.arch }}-${{ github.sha }}
+          path: artifacts-${{ matrix.arch }}
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts-*/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+
