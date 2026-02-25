@@ -26,13 +26,13 @@ jobs:
         run: |
           cd fping
           git fetch --tags
-          FPING_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+          FPING_TAG=$(git tag --sort=-v:refname | head -n 1)
           echo "FPING_TAG=$FPING_TAG" >> $GITHUB_OUTPUT
 
       - name: Checkout latest tag
         run: |
           cd fping
-          git checkout ${{ steps.fping_tag.outputs.FPING_TAG }}
+          git checkout $(git tag --sort=-v:refname | head -n 1)
 
       - name: Get fping commit SHA
         id: fping_sha
