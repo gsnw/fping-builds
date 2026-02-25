@@ -6,6 +6,9 @@ jobs:
     runs-on: ubuntu-24.04
     env:
       PACKAGE_NAME: fping
+    outputs:
+      fping_sha: ${{ steps.fping_sha.outputs.FPING_SHA }}
+      fping_tag: ${{ steps.fping_tag.outputs.FPING_TAG }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
@@ -15,6 +18,27 @@ jobs:
         with:
           repository: 'gsnw/fping'
           path: 'fping'
+          fetch-depth: 0
+          tags: true
+
+      - name: Get latest tag from fping
+        id: fping_tag
+        run: |
+          cd fping
+          git fetch --tags
+          FPING_TAG=$(git describe --tags $(git rev-list --tags --max-count=1))
+          echo "FPING_TAG=$FPING_TAG" >> $GITHUB_OUTPUT
+
+      - name: Checkout latest tag
+        run: |
+          cd fping
+          git checkout ${{ steps.fping_tag.outputs.FPING_TAG }}
+
+      - name: Get fping commit SHA
+        id: fping_sha
+        run: |
+          cd fping
+          echo "FPING_SHA=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
       - name: Install dependencies
         run: |
@@ -72,30 +96,41 @@ jobs:
           mkdir extract
           dpkg-deb -x $DEB_FILE extract
 
-          tar -czf ${PACKAGE_NAME}-${{ github.ref_name }}-linux-amd64.tar.gz -C extract .
+          tar -czf ${PACKAGE_NAME}-${{ steps.fping_tag.outputs.FPING_TAG }}-linux-amd64.tar.gz -C extract .
 
       - name: Upload Ubuntu Package
         uses: actions/upload-artifact@v6
         with:
-          name: fping-${{ matrix.arch }}-${{ github.sha }}
+          name: fping-${{ steps.fping_sha.outputs.FPING_SHA }}
           path: artifacts/*
 
   release:
     needs: build
     runs-on: ubuntu-22.04
-    if: startsWith(github.ref, 'refs/tags/')
+    if: github.event_name == 'workflow_dispatch'
     
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: fping-${{ matrix.arch }}-${{ github.sha }}
-          path: artifacts-${{ matrix.arch }}
+          name: fping-${{ needs.build.outputs.fping_sha }}
+          path: artifacts
+
+      - name: Create dynamic tag
+        id: create_tag
+        run: |
+          TAG=build-${{ needs.build.outputs.fping_tag }}
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
 
       - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
-          files: artifacts-*/*
+          tag_name: ${{ steps.create_tag.outputs.TAG }}
+          name: fping ${{ steps.create_tag.outputs.TAG }}
+          body: |
+            Automated build of gsnw/fping
+            Commit: ${{ needs.build.outputs.fping_sha }}
+          files: artifacts/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
