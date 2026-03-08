@@ -1,0 +1,58 @@
+name: Update Build Log
+on:
+  workflow_dispatch:
+jobs:
+  update-build-log:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+    
+      - name: Checkout fping Repository
+        uses: actions/checkout@v6
+        with:
+          repository: 'gsnw/fping'
+          path: 'fping'
+          fetch-depth: 0
+          tags: true
+
+      - name: Get latest tag and commit
+        id: fping
+        run: |
+          cd fping
+          TAG=$(git tag --sort=-v:refname | head -n 1)
+          SHA=$(git rev-list -n 1 $TAG)
+          echo "TAG=$TAG" >> $GITHUB_OUTPUT
+          echo "SHA=$SHA" >> $GITHUB_OUTPUT
+
+      - name: Update build-log.md
+        id: update
+        run: |
+          TAG="${{ steps.fping.outputs.TAG }}"
+          SHA="${{ steps.fping.outputs.SHA }}"
+          DATE=$(date -u +"%Y-%m-%d")
+
+          if [ ! -f build-log.md ]; then
+            echo "| Date | Tag | Commit |" > build-log.md
+            echo "|------|-----|--------|" >> build-log.md
+          fi
+
+          if grep -q "| $TAG |" build-log.md; then
+            echo "Entry already exists"
+            echo "changed=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "| $DATE | $TAG | $SHA |" >> build-log.md
+          echo "changed=true" >> $GITHUB_OUTPUT
+
+      - name: Commit changes
+        if: steps.update.outputs.changed == 'true'
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add build-log.md
+          git commit -m "Add fping build entry for ${{ steps.fping.outputs.TAG }}"
+          git push
