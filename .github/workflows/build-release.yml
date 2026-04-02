@@ -1,20 +1,22 @@
-name: Build Debian + tar.gz Release
+name: Build Debian + Multi Platform Release
+
 on:
   workflow_dispatch:
+
+env:
+  PACKAGE_NAME: fping
+
 jobs:
-  build:
+  prepare:
     runs-on: ubuntu-24.04
-    env:
-      PACKAGE_NAME: fping
+
     outputs:
       fping_sha: ${{ steps.fping_sha.outputs.FPING_SHA }}
       fping_tag: ${{ steps.fping_tag.outputs.FPING_TAG }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
 
+    steps:
       - name: Checkout fping Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
         with:
           repository: 'gsnw/fping'
           path: 'fping'
@@ -40,10 +42,63 @@ jobs:
           cd fping
           echo "FPING_SHA=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Install dependencies
+  build-deb:
+    runs-on: ubuntu-24.04
+    needs: prepare
+
+    strategy:
+      matrix:
+        arch: [amd64, arm64, armhf]
+      
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout fping Repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'gsnw/fping'
+          path: 'fping'
+          fetch-depth: 0
+          tags: true
+
+      - name: Checkout tag
         run: |
+          cd fping
+          git fetch --tags
+          git checkout $(git tag --sort=-v:refname | head -n 1)
+
+      - name: Configure APT sources and install dependencies
+        run: |
+          if [ "${{ matrix.arch }}" != "amd64" ]; then
+            sudo dpkg --add-architecture ${{ matrix.arch }}
+          fi
+
+          # Fix Ubuntu 24.04 sources for ARM (IMPORTANT)
+          if [ "${{ matrix.arch }}" = "armhf" ] || [ "${{ matrix.arch }}" = "arm64" ]; then
+            echo "Adding ports.ubuntu.com for ${{ matrix.arch }}"
+
+            # Restrict the existing ubuntu.sources to amd64 only
+            sudo sed -i '/^Types: deb/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources || true
+
+            # Add ports source for the target architecture
+            cat <<EOF | sudo tee /etc/apt/sources.list.d/ports.sources
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports
+          Suites: noble noble-updates noble-backports noble-security
+          Components: main universe restricted multiverse
+          Architectures: ${{ matrix.arch }}
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+            fi
+
           sudo apt-get update -qq
-          sudo apt-get install build-essential debhelper dpkg-dev fakeroot gnupg libcap2-bin
+
+          if [ "${{ matrix.arch }}" = "amd64" ]; then
+            sudo apt-get install -y build-essential debhelper dpkg-dev fakeroot gnupg libcap-dev libcap2-bin
+          else
+            sudo apt-get install -y build-essential debhelper dpkg-dev fakeroot gnupg crossbuild-essential-${{ matrix.arch }} libcap-dev libcap2-bin libcap-dev:${{ matrix.arch }}
+          fi
 
       - name: Copy debian directory to fping source
         run: |
@@ -73,9 +128,9 @@ jobs:
           cd $PACKAGE_NAME
           if [ -n "${GPG_PRIVATE_KEY}" ] && [ -n "${GPG_KEY_ID}" ]; then
             echo "Signing enabled"
-            dpkg-buildpackage -k$GPG_KEY_ID -b
+            dpkg-buildpackage -k$GPG_KEY_ID -b -a${{ matrix.arch }}
           else
-            dpkg-buildpackage -us -uc -b
+            dpkg-buildpackage -us -uc -b -a${{ matrix.arch }}
           fi
         env:
           GPG_PRIVATE_KEY: ${{ secrets.GPG_PRIVATE_KEY }}
@@ -90,37 +145,174 @@ jobs:
           mv *.changes artifacts/ || true
           mv *.buildinfo artifacts/ || true
 
-          cd artifacts
-          DEB_FILE=$(ls *.deb | head -n 1)
-
-          mkdir extract
-          dpkg-deb -x $DEB_FILE extract
-
-          tar -czf ${PACKAGE_NAME}-${{ steps.fping_tag.outputs.FPING_TAG }}-linux-amd64.tar.gz -C extract .
-
       - name: Upload Ubuntu Package
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v4
         with:
-          name: fping-${{ steps.fping_sha.outputs.FPING_SHA }}
+          name: fping-deb-${{ matrix.arch }}
           path: artifacts/*
 
-  release:
-    needs: build
+  build-linux:
     runs-on: ubuntu-24.04
-    if: github.event_name == 'workflow_dispatch'
+    needs: prepare
+
+    strategy:
+      matrix:
+        arch: [amd64, arm64, armhf]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout fping Repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'gsnw/fping'
+          path: 'fping'
+          fetch-depth: 0
+          tags: true
+
+      - name: Checkout tag
+        run: |
+          cd fping
+          git fetch --tags
+          git checkout $(git tag --sort=-v:refname | head -n 1)
+
+      - name: Configure APT sources and install compilers
+        run: |
+          if [ "${{ matrix.arch }}" = "armhf" ] || [ "${{ matrix.arch }}" = "arm64" ]; then
+            echo "Adding ports.ubuntu.com for ${{ matrix.arch }}"
+
+            # Restrict the existing ubuntu.sources to amd64 only
+            sudo sed -i '/^Types: deb/a Architectures: amd64' /etc/apt/sources.list.d/ubuntu.sources || true
+
+            # Add ports source for the target architecture
+            cat <<EOF | sudo tee /etc/apt/sources.list.d/ports.sources
+          Types: deb
+          URIs: http://ports.ubuntu.com/ubuntu-ports
+          Suites: noble noble-updates noble-backports noble-security
+          Components: main universe restricted multiverse
+          Architectures: ${{ matrix.arch }}
+          Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
+          EOF
+            fi
+          
+          sudo apt-get update -qq
+          sudo apt-get install -y build-essential gcc-aarch64-linux-gnu gcc-arm-linux-gnueabihf libcap-dev libcap2-bin
+
+      - name: Build binary
+        run: |
+          mkdir -p artifacts/stage
+          cd fping
+          autoreconf --install
+
+          if [ "${{ matrix.arch }}" = "arm64" ]; then
+            HOST=aarch64-linux-gnu
+            CC=aarch64-linux-gnu-gcc
+          elif [ "${{ matrix.arch }}" = "armhf" ]; then
+            HOST=arm-linux-gnueabihf
+            CC=arm-linux-gnueabihf-gcc
+          else
+            HOST=""
+            CC=gcc
+          fi
+
+          if [ -n "$HOST" ]; then
+            ./configure --host=$HOST --prefix=$(pwd)/../artifacts/stage
+            make CC=$CC -j$(nproc)
+          else
+            ./configure --prefix=$(pwd)/../artifacts/stage
+            make -j$(nproc)
+          fi
+          make install
+
+      - name: Create archive
+        run: |
+          cd artifacts
+          tar -czf ${PACKAGE_NAME}-${{ needs.prepare.outputs.fping_tag }}-linux-${{ matrix.arch }}.tar.gz stage
+
+      - name: Upload Linux binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: fping-linux-${{ matrix.arch }}
+          path: artifacts/*.tar.gz
+
+  build-macos:
+    runs-on: macos-latest
+    needs: prepare
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Checkout fping Repository
+        uses: actions/checkout@v4
+        with:
+          repository: 'gsnw/fping'
+          path: 'fping'
+          fetch-depth: 0
+          tags: true
+
+      - name: Checkout tag
+        run: |
+          cd fping
+          git fetch --tags
+          git checkout $(git tag --sort=-v:refname | head -n 1)
+
+      - name: Install dependencies
+        run: |
+          brew install autoconf automake
+
+      - name: Build macOS binary
+        run: |
+          cd fping
+          autoreconf --install
+          ./configure --prefix=$(pwd)/../artifacts/stage
+          make -j$(sysctl -n hw.ncpu)
+          make install
+
+      - name: Create archive
+        run: |
+          cd artifacts
+          tar -czf ${PACKAGE_NAME}-${{ needs.prepare.outputs.fping_tag }}-macos-amd64.tar.gz stage
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: fping-macos-amd64
+          path: artifacts/*.tar.gz
+
+  release:
+    runs-on: ubuntu-24.04
+    needs:
+      - prepare
+      - build-deb
+      - build-linux
+      - build-macos
     
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
-          name: fping-${{ needs.build.outputs.fping_sha }}
           path: artifacts
+          merge-multiple: true
 
       - name: Create dynamic tag
         id: create_tag
         run: |
-          TAG=build-${{ needs.build.outputs.fping_tag }}
+          TAG=build-${{ needs.prepare.outputs.fping_tag }}
           echo "TAG=$TAG" >> $GITHUB_OUTPUT
+
+      - name: Prepare release files (exclude .buildinfo and .changes)
+        run: |
+          mkdir -p release
+          find artifacts -type f \
+            ! -name '*.buildinfo' \
+            ! -name '*.changes' \
+            -exec cp {} release/ \;
+
+      - name: Generate checksums
+        run: |
+          cd release
+          find . -type f ! -name 'SHA256SUMS' -exec sha256sum {} \; > SHA256SUMS
 
       - name: Publish Release
         uses: softprops/action-gh-release@v2
@@ -129,7 +321,8 @@ jobs:
           name: fping ${{ steps.create_tag.outputs.TAG }}
           body: |
             Automated build of gsnw/fping
-            Commit: ${{ needs.build.outputs.fping_sha }}
-          files: artifacts/*
+            Upstream tag: ${{ needs.prepare.outputs.fping_tag }}
+            Commit: ${{ needs.prepare.outputs.fping_sha }}
+          files: release/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
